@@ -474,20 +474,21 @@ if __name__ == '__main__':
     print("Preparing output of shorelines")
     outputShorelines = np.copy(shorelines)
 
-    thickenPointsFun(outputShorelines, 4)
-    # добавляем сетку шагом thresholdStep (если больше 16)
-    if thresholdStep > 16:
-        print(outputShorelines.shape[0], outputShorelines.shape[1])
-        for i in range(0, outputShorelines.shape[0], thresholdStep):
-            x = np.ones(outputShorelines.shape[1])
-            outputShorelines[i, :] = x
-            # for j in range(outputShorelines.shape[1]):
-            #     outputShorelines[i][j] = 1
-        for i in range(0, outputShorelines.shape[1], thresholdStep):
-            x = np.ones(outputShorelines.shape[0])
-            outputShorelines[:, i] = x
-            # for j in range(outputShorelines.shape[0]):
-            #     outputShorelines[j][i] = 1
+    if thickenPoints:
+        thickenPointsFun(outputShorelines, 4)
+        # добавляем сетку шагом thresholdStep (если больше 16)
+        if thresholdStep > 16:
+            print(outputShorelines.shape[0], outputShorelines.shape[1])
+            for i in range(0, outputShorelines.shape[0], thresholdStep):
+                x = np.ones(outputShorelines.shape[1])
+                outputShorelines[i, :] = x
+                # for j in range(outputShorelines.shape[1]):
+                #     outputShorelines[i][j] = 1
+            for i in range(0, outputShorelines.shape[1], thresholdStep):
+                x = np.ones(outputShorelines.shape[0])
+                outputShorelines[:, i] = x
+                # for j in range(outputShorelines.shape[0]):
+                #     outputShorelines[j][i] = 1
 
     fig, axs = plt.subplots(1, 2)
     ep.plot_bands(outputShorelines, cmap="binary", ax=axs[0], title="Shorelines")
