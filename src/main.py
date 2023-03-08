@@ -1,21 +1,15 @@
 import math
-import os
 import queue
 import random
 import time
-from glob import glob
-import geopandas as pgd
 import numpy as np
-import rasterio as rio
 import xarray as xr
 import rioxarray as rxr
-import earthpy as et
 import earthpy.spatial as es
 import earthpy.plot as ep
 import matplotlib.pyplot as plt
 import sys
 import matplotlib as mpl
-from numpy import floor
 from xarray.core.utils import OrderedSet
 
 mpl.use('TkAgg')
@@ -35,14 +29,7 @@ def open(path):
             height = band.shape[0]
             width = band.shape[1]
             # print(band)
-            # print(int(height / 4), int(height / 4 * 3))
-            # print(int(width / 4), int(width / 4 * 3))
-            # band = band.where(int(height / 4) < band.y, drop=True)
-            # band = band.where(band.y < int(height / 4 * 3), drop=True)
-            # band = band.where(((int(height / 4) < band.y) & (band.y < int(height / 4 * 3))
-            #                    & ((int(width / 4) < band.x) & (band.x < int(width / 4 * 3)))), drop=True)
             # print(band.shape)
-            # print(band)
             # print("Bounding coordinates for image:", band.x[int(width / clipSize)].values, band.y[int(height / clipSize)].values,
             #       band.x[int(width / clipSize * (clipSize - 1))].values, band.y[int(height / clipSize * (clipSize - 1))].values)
             croppedBand = band.rio.clip_box(minx=band.x[int(width / clipSize)].values,
@@ -52,11 +39,6 @@ def open(path):
             # print(croppedBand)
             return croppedBand
     return rxr.open_rasterio(path, masked=True).squeeze()
-
-
-def normalize(array):
-    array_min, array_max = array.min(), array.max()
-    return ((array - array_min) / (array_max - array_min)).astype("uint8")
 
 
 def getNeighbors(matrix, i, j, len=1):
@@ -115,7 +97,7 @@ def markShoreline(matrix, i, j, first=False):
     else:
         if thresholdStep > 2:
             neighbors = getNeighbors(matrix, i, j, 2)
-            if any(val > 0.3 for val in neighbors) and any(val < -0.3 for val in neighbors):
+            if any(val > shorelineUpperThreshold for val in neighbors) and any(val < shorelineLowerThreshold for val in neighbors):
                 shorelines[i][j] = 1
             neighbors = getThresholdedNeighbors(MNDWI, x, y, 4)
             for neighbor in neighbors:
@@ -128,13 +110,13 @@ def markShoreline(matrix, i, j, first=False):
             #         markShoreline(MNDWI, neighbor[0], neighbor[1])
         else:  # thresholdStep = 2
             neighbors = getNeighbors(matrix, i, j, 2)
-            if any(val > 0.3 for val in neighbors) and any(val < -0.3 for val in neighbors):
+            if any(val > shorelineUpperThreshold for val in neighbors) and any(val < shorelineLowerThreshold for val in neighbors):
                 shorelines[i][j] = 1
                 thrNeighbors = getThresholdedNeighbors(matrix, i, j, 2)
                 for t in thrNeighbors:
                     if matrix[t[0]][t[1]] != 1:
                         ns = getNeighbors(matrix, t[0], t[1], 2)
-                        if any(val > 0.3 for val in ns) and any(val < -0.3 for val in ns):
+                        if any(val > shorelineUpperThreshold for val in ns) and any(val < shorelineLowerThreshold for val in ns):
                             shorelines[t[0]][t[1]] = 1
 
 
@@ -231,7 +213,7 @@ def decompress(transformations, srcSize, destSize, steps, iters=8):
                 k, l, dir, angle = transformations[i][j]
                 S = shrink(iterations[-1][k * steps: k * steps + srcSize, l * steps: l * steps + srcSize], sizeFactor)
                 D = transform(S, dir, angle)
-                image[i*destSize : (i+1)*destSize, j*destSize : (j+1) * destSize] = D
+                image[i * destSize: (i + 1) * destSize, j * destSize: (j + 1) * destSize] = D
         iterations.append(image)
         image = np.zeros((height, width))
     return iterations
@@ -265,7 +247,7 @@ def plotIterations(iters, target=None):
     cols = rows
     fig, axs = plt.subplots(cols + 1, rows, figsize=(12, 8))
     for i, image in enumerate(iters):
-        if i > 1:
+        if i > 0:
             lowestValue = np.min(image)
             if np.count_nonzero(image == lowestValue) > np.count_nonzero(image > lowestValue):
                 ep.plot_bands(image, cmap="binary", ax=axs[i // rows][i % cols])
@@ -303,7 +285,7 @@ if __name__ == '__main__':
     for i, band in enumerate(fileList):
         allBands.append(open(band))  # * 0.0000275) + -0.2)
         allBands[i]["band"] = i + 1
-    # allBands[3]["band"] = 5
+    allBands[3]["band"] = 5
     allBands = xr.concat(allBands, dim="band")
 
     # print(allBands)
@@ -312,9 +294,8 @@ if __name__ == '__main__':
     plt.show()
 
     if len(sys.argv) > 1 and "-ds" in sys.argv[2:]:
-        # bandsOutput = xr.where(~np.isnan(allBands), allBands, -9999, True)
         # print(allBands.values)
-        ep.plot_rgb(allBands.values, rgb=(3, 2, 1), title="RGB image",
+        ep.plot_rgb(allBands.values, rgb=(2, 1, 0), title="RGB image",
                     stretch=True)  # killed по памяти на 7400х8200 поэтому только на уменьшенных размерах
         plt.show()
 
@@ -322,30 +303,15 @@ if __name__ == '__main__':
         if "-qa" in sys.argv[2:]:
             path = "../tests/" + folderName + "/QA.TIF"
             qa = open(path).astype(int)
-            # allClouds = np.zeros((qa.shape[0], qa.shape[1]))
-            # for y, x in np.ndindex(allClouds.shape):
-            #     if qa[y, x] & 0b11000000 != 0 or qa[y, x] & 0b10000000 != 0 or qa[y, x] & 0b01000000 or qa[y, x] & 0b10000:
-            #         allClouds[x, y] = 1
 
-            # highCloudConfidence = np.where(np.bitwise_and(qa, 0b1100000000) != 0, True, False)
-            mediumCloudConfidence = np.where(np.bitwise_and(qa, 0b1000000000) != 0, True, False)
-            # lowCloudConfidence = np.where(np.bitwise_and(qa, 0b0100000000) != 0, True, False)
             cloud = np.where(np.bitwise_and(qa, 0b1000) != 0, True, False)
+            mediumCloudConfidence = np.where(np.bitwise_and(qa, 0b1000000000) != 0, True, False)
+            # highCloudConfidence = np.where(np.bitwise_and(qa, 0b1100000000) != 0, True, False) - уже входит в определение cloud
+            # lowCloudConfidence = np.where(np.bitwise_and(qa, 0b0100000000) != 0, True, Fals
             cloudShadow = np.where(np.bitwise_and(qa, 0b10000) != 0, True, False)
-            # highCloudShadowConfidence = np.where(np.bitwise_and(qa, 0b110000000000) != 0, True, False)
             mediumCloudShadowConfidence = np.where(np.bitwise_and(qa, 0b100000000000) != 0, True, False)
+            # highCloudShadowConfidence = np.where(np.bitwise_and(qa, 0b110000000000) != 0, True, False) - уже входит в определение cloudShadow
             # lowCloudShadowConfidence = np.where(np.bitwise_and(qa, 0b010000000000) != 0, True, False)
-
-            # highCloudConfidence = np.where(np.bitwise_and(qa, 0b11000000) != 0, True, False)
-            # cloud = np.where(np.bitwise_and(qa, 0b100000) != 0, True, False)
-            # cloudShadow = np.where(np.bitwise_and(qa, 0b1000) != 0, True, False)
-            # mediumCloudConfidence = np.where(np.bitwise_and(qa, 0b10000000) != 0, True, False)
-            # lowCloudConfidence = np.where(np.bitwise_and(qa, 0b01000000) != 0, True, False)
-
-            # highCloudConfidence = em.pixel_flags["pixel_qa"]["L47"]["High Cloud Confidence"]
-            # cloud = em.pixel_flags["pixel_qa"]["L47"]["Cloud"]
-            # cloudShadow = em.pixel_flags["pixel_qa"]["L47"]["Cloud Shadow"]
-            # allClouds = highCloudConfidence + cloud + cloudShadow
 
             # print(qa.sel(x=5000, y=1500, method='nearest').values)
             # print(np.unique(qa.values))
@@ -362,16 +328,10 @@ if __name__ == '__main__':
 
             # print(cloud)
             # print(cloudShadow)
-            # print(highCloudConfidence)
             # print(mediumCloudConfidence)
-            # print(lowCloudConfidence)
-            # print(highCloudShadowConfidence)
             # print(mediumCloudShadowConfidence)
-            # print(lowCloudShadowConfidence)
 
             allClouds = np.any((cloud, cloudShadow, mediumCloudConfidence, mediumCloudShadowConfidence), axis=0)
-            # del mediumCloudConfidence
-            # del lowCloudConfidence
             del cloud
             del cloudShadow
             del mediumCloudConfidence
@@ -381,11 +341,13 @@ if __name__ == '__main__':
             # del allClouds
             # print(np.unique(allClouds))
             fig, axs = plt.subplots(1, 2, figsize=(12, 8))
-            axs[0].imshow(qa, cmap="cool")
+            qaBand = axs[0].imshow(qa, cmap="cool")
+            axs[0].set_title("QA Band")
             # plt.imshow(qa, cmap="cool")
             # plt.show()
             del qa
             im = axs[1].imshow(allClouds, cmap="Greys_r")
+            axs[1].set_title("Cloud mask")
             # plt.imshow(mask, cmap="Greys_r")
             plt.show()
 
@@ -396,7 +358,7 @@ if __name__ == '__main__':
             plt.show()
 
             if "-ds" in sys.argv[2:]:
-                ep.plot_rgb(allBands.values, rgb=(3, 2, 1), title="RGB image",
+                ep.plot_rgb(allBands.values, rgb=(2, 1, 0), title="RGB image",
                             stretch=True)
                 plt.show()
     else:
@@ -406,7 +368,7 @@ if __name__ == '__main__':
     MNDWI = es.normalized_diff(allBands[1], allBands[3])
     print("MNDWI values:", MNDWI.min(), 'to', MNDWI.max(), 'mean:', MNDWI.mean())
     print("MNDWI shape:", MNDWI.shape)
-    ep.plot_bands(MNDWI, cmap="RdBu", vmin=-1, vmax=1)
+    ep.plot_bands(MNDWI, cmap="RdBu", vmin=-1, vmax=1, title="MNDWI")
     plt.show()
 
     '''
@@ -432,7 +394,7 @@ if __name__ == '__main__':
         x = tuple[0]
         y = tuple[1]
         neighbors = getNeighbors(MNDWI, x, y, 2)
-        if any(val > 0.3 for val in neighbors) and any(val < -0.3 for val in neighbors):
+        if any(val > shorelineUpperThreshold for val in neighbors) and any(val < shorelineLowerThreshold for val in neighbors):
             shorelines[x][y] = 1
             startingIndexes.append((x, y))
     print("Got", len(startingIndexes), "base shoreline pixels from extracting with thresholdStep =", thresholdStep)
@@ -486,7 +448,7 @@ if __name__ == '__main__':
                 x = tuple[0]
                 y = tuple[1]
                 neighbors = getNeighbors(MNDWI, x, y, 2)
-                if any(val > 0.3 for val in neighbors) and any(val < -0.3 for val in neighbors):
+                if any(val > shorelineUpperThreshold for val in neighbors) and any(val < shorelineLowerThreshold for val in neighbors):
                     extraShorelines[x][y] = 1
             end = time.time()
             print("Time spent on extracting shoreline with step = 1:", end - start)
@@ -504,9 +466,9 @@ if __name__ == '__main__':
             thickenPointsFun(comparison, 4)
 
             fig, axs = plt.subplots(1, 3)
-            ep.plot_bands(shorelines, cmap="binary", ax=axs[0])
-            ep.plot_bands(extraShorelines, cmap="binary", ax=axs[1])
-            ep.plot_bands(comparison, cmap="binary", ax=axs[2])
+            ep.plot_bands(shorelines, cmap="binary", ax=axs[0], title=("Shorelines with thresholdStep =" + str(thresholdStep)))
+            ep.plot_bands(extraShorelines, cmap="binary", ax=axs[1], title="Shorelines with thresholdStep = 1")
+            ep.plot_bands(comparison, cmap="binary", ax=axs[2], title="Difference between shorelines")
             plt.show()
 
     print("Preparing output of shorelines")
@@ -528,18 +490,26 @@ if __name__ == '__main__':
             #     outputShorelines[j][i] = 1
 
     fig, axs = plt.subplots(1, 2)
-    ep.plot_bands(outputShorelines, cmap="binary", ax=axs[0])
-    ep.plot_bands(MNDWI, cmap="RdBu", vmin=-1, vmax=1, ax=axs[1])
+    ep.plot_bands(outputShorelines, cmap="binary", ax=axs[0], title="Shorelines")
+    ep.plot_bands(MNDWI, cmap="RdBu", vmin=-1, vmax=1, ax=axs[1], title="MNDWI")
 
     plt.show()
 
     print("Shrinking shoreline image")
-    image = shrink(shorelines, 4)
-    ep.plot_bands(image, cmap="binary")
+    image = shrink(np.where(shorelines == 1, 255, 0), 4)
+    ep.plot_bands(image, cmap="binary", title="Lower-resolution image")
 
     plt.show()
 
     # image = np.copy(shorelines)
+
+    '''
+    Производительность на примере вызова python3 main.py test1 -qa -ds 3:
+        MNDWI shape: (2355, 2671)
+        Выделение береговой линии; 21.39 + 8.30 = 29.69 секунд, получено 6806 пикселей береговой линии
+        Время, потраченное на сжатие изеображения; 729.80 секунд, на восстановление - 22.29 секунд.
+    '''
+
 
     print("Starting fractal compression of image")
     start = time.time()
