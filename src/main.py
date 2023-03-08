@@ -1,6 +1,7 @@
 import math
 import os
 import queue
+import random
 import time
 from glob import glob
 import geopandas as pgd
@@ -211,8 +212,9 @@ def getSegmentation(image, srcSize, destSize, steps):
     for i in range((image.shape[0] - srcSize) // steps + 1):
         for j in range((image.shape[1] - srcSize) // steps + 1):
             seg = shrink(image[i * steps: i * steps + srcSize, j * steps: j * steps + srcSize], sizeFactor)
-            for dir, angle in transforms:
-                segments.append((i, j, dir, angle, transform(seg, dir, angle)))
+            # for dir, angle in transforms:
+            dir, angle = random.choice(transforms)
+            segments.append((i, j, dir, angle, transform(seg, dir, angle)))
     return segments
 
 
@@ -263,9 +265,17 @@ def plotIterations(iters, target=None):
     cols = rows
     fig, axs = plt.subplots(cols + 1, rows, figsize=(12, 8))
     for i, image in enumerate(iters):
-        ep.plot_bands(image, cmap="Greys_r", ax=axs[i // rows][i % cols])
+        if i > 1:
+            lowestValue = np.min(image)
+            if np.count_nonzero(image == lowestValue) > np.count_nonzero(image > lowestValue):
+                ep.plot_bands(image, cmap="binary", ax=axs[i // rows][i % cols])
+            else:
+                ep.plot_bands(image, cmap="Greys_r", ax=axs[i // rows][i % cols])
+        else:
+            ep.plot_bands(image, cmap="binary", ax=axs[i // rows][i % cols])
         plt.title(str(i))
     ep.plot_bands(shorelines, cmap="binary", ax=axs[rows][0], title="Original")
+    ep.plot_bands(target, cmap="binary", ax=axs[rows][1], title="Shrinked")
 
 
 if __name__ == '__main__':
@@ -533,11 +543,11 @@ if __name__ == '__main__':
 
     print("Starting fractal compression of image")
     start = time.time()
-    compressedTrs = compress(image, 64, 16, 64)
+    compressedTrs = compress(image, 8, 4, 8)
     print("Time spent compressing image:", time.time() - start)
     print("Starting fractal decompression of image")
     start = time.time()
-    decompressedIters = decompress(compressedTrs, 64, 16, 64)
+    decompressedIters = decompress(compressedTrs, 8, 4, 8)
     print("Time spent decompressing image:", time.time() - start)
     plotIterations(decompressedIters, image)
 
