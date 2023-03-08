@@ -97,7 +97,8 @@ def markShoreline(matrix, i, j, first=False):
     else:
         if thresholdStep > 2:
             neighbors = getNeighbors(matrix, i, j, 2)
-            if any(val > shorelineUpperThreshold for val in neighbors) and any(val < shorelineLowerThreshold for val in neighbors):
+            if any(val > shorelineUpperThreshold for val in neighbors) and any(
+                    val < shorelineLowerThreshold for val in neighbors):
                 shorelines[i][j] = 1
             neighbors = getThresholdedNeighbors(MNDWI, x, y, 4)
             for neighbor in neighbors:
@@ -110,13 +111,15 @@ def markShoreline(matrix, i, j, first=False):
             #         markShoreline(MNDWI, neighbor[0], neighbor[1])
         else:  # thresholdStep = 2
             neighbors = getNeighbors(matrix, i, j, 2)
-            if any(val > shorelineUpperThreshold for val in neighbors) and any(val < shorelineLowerThreshold for val in neighbors):
+            if any(val > shorelineUpperThreshold for val in neighbors) and any(
+                    val < shorelineLowerThreshold for val in neighbors):
                 shorelines[i][j] = 1
                 thrNeighbors = getThresholdedNeighbors(matrix, i, j, 2)
                 for t in thrNeighbors:
                     if matrix[t[0]][t[1]] != 1:
                         ns = getNeighbors(matrix, t[0], t[1], 2)
-                        if any(val > shorelineUpperThreshold for val in ns) and any(val < shorelineLowerThreshold for val in ns):
+                        if any(val > shorelineUpperThreshold for val in ns) and any(
+                                val < shorelineLowerThreshold for val in ns):
                             shorelines[t[0]][t[1]] = 1
 
 
@@ -246,18 +249,25 @@ def plotIterations(iters, target=None):
     rows = math.ceil(np.sqrt(len(iters)))
     cols = rows
     fig, axs = plt.subplots(cols + 1, rows, figsize=(12, 8))
+    res = np.zeros_like(shorelines)
     for i, image in enumerate(iters):
         if i > 0:
             lowestValue = np.min(image)
             if np.count_nonzero(image == lowestValue) > np.count_nonzero(image > lowestValue):
                 ep.plot_bands(image, cmap="binary", ax=axs[i // rows][i % cols])
+                if i == (len(iters) - 1):   # делаем бинарное изображение на основе последней итерации
+                    res = np.where(image > lowestValue, 1, 0)
             else:
                 ep.plot_bands(image, cmap="Greys_r", ax=axs[i // rows][i % cols])
+                if i == (len(iters) - 1):   # делаем бинарное изображение на основе последней итерации
+                    highestValue = np.max(image)
+                    res = np.where(image < highestValue, 1, 0)
         else:
             ep.plot_bands(image, cmap="binary", ax=axs[i // rows][i % cols])
         plt.title(str(i))
     ep.plot_bands(shorelines, cmap="binary", ax=axs[rows][0], title="Original")
     ep.plot_bands(target, cmap="binary", ax=axs[rows][1], title="Shrinked")
+    ep.plot_bands(res, cmap="binary", ax=axs[rows][2], title="Result")
 
 
 if __name__ == '__main__':
@@ -361,6 +371,8 @@ if __name__ == '__main__':
                 ep.plot_rgb(allBands.values, rgb=(2, 1, 0), title="RGB image",
                             stretch=True)
                 plt.show()
+        else:
+            print("-qa key not entered - not checking for qa file")
     else:
         print("-qa key not entered - not checking for qa file")
 
@@ -394,7 +406,8 @@ if __name__ == '__main__':
         x = tuple[0]
         y = tuple[1]
         neighbors = getNeighbors(MNDWI, x, y, 2)
-        if any(val > shorelineUpperThreshold for val in neighbors) and any(val < shorelineLowerThreshold for val in neighbors):
+        if any(val > shorelineUpperThreshold for val in neighbors) and any(
+                val < shorelineLowerThreshold for val in neighbors):
             shorelines[x][y] = 1
             startingIndexes.append((x, y))
     print("Got", len(startingIndexes), "base shoreline pixels from extracting with thresholdStep =", thresholdStep)
@@ -448,7 +461,8 @@ if __name__ == '__main__':
                 x = tuple[0]
                 y = tuple[1]
                 neighbors = getNeighbors(MNDWI, x, y, 2)
-                if any(val > shorelineUpperThreshold for val in neighbors) and any(val < shorelineLowerThreshold for val in neighbors):
+                if any(val > shorelineUpperThreshold for val in neighbors) and any(
+                        val < shorelineLowerThreshold for val in neighbors):
                     extraShorelines[x][y] = 1
             end = time.time()
             print("Time spent on extracting shoreline with step = 1:", end - start)
@@ -466,7 +480,8 @@ if __name__ == '__main__':
             thickenPointsFun(comparison, 4)
 
             fig, axs = plt.subplots(1, 3)
-            ep.plot_bands(shorelines, cmap="binary", ax=axs[0], title=("Shorelines with thresholdStep =" + str(thresholdStep)))
+            ep.plot_bands(shorelines, cmap="binary", ax=axs[0],
+                          title=("Shorelines with thresholdStep =" + str(thresholdStep)))
             ep.plot_bands(extraShorelines, cmap="binary", ax=axs[1], title="Shorelines with thresholdStep = 1")
             ep.plot_bands(comparison, cmap="binary", ax=axs[2], title="Difference between shorelines")
             plt.show()
@@ -510,7 +525,6 @@ if __name__ == '__main__':
         Выделение береговой линии; 21.39 + 8.30 = 29.69 секунд, получено 6806 пикселей береговой линии
         Время, потраченное на сжатие изеображения; 729.80 секунд, на восстановление - 22.29 секунд.
     '''
-
 
     print("Starting fractal compression of image")
     start = time.time()
