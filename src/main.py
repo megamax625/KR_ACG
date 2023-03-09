@@ -5,7 +5,6 @@ import time
 import numpy as np
 import xarray as xr
 import rioxarray as rxr
-import earthpy.spatial as es
 import earthpy.plot as ep
 import matplotlib.pyplot as plt
 import sys
@@ -377,7 +376,8 @@ if __name__ == '__main__':
         print("-qa key not entered - not checking for qa file")
 
     print("Calculating MNDWI")
-    MNDWI = es.normalized_diff(allBands[1], allBands[3])
+    # MNDWI = (GREEN - SWIR) / (GREEN + SWIR)
+    MNDWI = (allBands[1] - allBands[3]) / (allBands[1] + allBands[3])
     print("MNDWI values:", MNDWI.min(), 'to', MNDWI.max(), 'mean:', MNDWI.mean())
     print("MNDWI shape:", MNDWI.shape)
     ep.plot_bands(MNDWI, cmap="RdBu", vmin=-1, vmax=1, title="MNDWI")
