@@ -377,7 +377,7 @@ if __name__ == '__main__':
 
     print("Calculating MNDWI")
     # MNDWI = (GREEN - SWIR) / (GREEN + SWIR)
-    MNDWI = (allBands[1] - allBands[3]) / (allBands[1] + allBands[3])
+    MNDWI = ((allBands[1] - allBands[3]) / (allBands[1] + allBands[3])).values
     print("MNDWI values:", MNDWI.min(), 'to', MNDWI.max(), 'mean:', MNDWI.mean())
     print("MNDWI shape:", MNDWI.shape)
     ep.plot_bands(MNDWI, cmap="RdBu", vmin=-1, vmax=1, title="MNDWI")
